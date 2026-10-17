@@ -1,0 +1,22 @@
+# ── Mrembo Nails · never commit secrets or local junk ──
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+.idea/
+.vscode/
+
+# Environment or secret files (the anon key lives in supabase.js ON PURPOSE —
+# it is a publishable key protected by RLS. NEVER create files with the
+# service-role key, database password, or admin password.)
+.env
+.env.*
+*.pem
+secrets/
+
+# Local helpers / tooling (not needed to deploy this static site)
+node_modules/
+.supabase/
+netlify-debug.log

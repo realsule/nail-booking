@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Owner Studio — Mrembo Nails</title>
+  <meta name="description" content="Private owner dashboard.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#FFF7F9">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <div class="page-glow" aria-hidden="true"></div>
+
+  <!-- ═══════════════════ LOGIN VIEW ═══════════════════ -->
+  <div class="auth-wrap" id="auth-view">
+    <div class="glass-card auth-card">
+      <div class="auth-mark" aria-hidden="true">M</div>
+      <h1>Welcome back ✨</h1>
+      <p class="lead" id="auth-lead">Sign in to manage your gallery, services and business settings.</p>
+
+      <form class="auth-form" id="login-form" novalidate>
+        <div>
+          <label class="field-label" for="login-email">Email</label>
+          <input class="input" type="email" id="login-email" autocomplete="email" placeholder="you@example.com" required>
+        </div>
+        <div>
+          <label class="field-label" for="login-password">Password</label>
+          <input class="input" type="password" id="login-password" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+        <div class="form-msg err" id="login-msg" role="alert" hidden></div>
+        <button type="submit" class="btn btn-block" id="login-btn">Sign In</button>
+        <div class="auth-extra">
+          <button type="button" class="link-btn" id="forgot-btn">Forgot password?</button>
+          <a href="index.html" class="link-btn" style="text-decoration:none;">← Back to site</a>
+        </div>
+      </form>
+
+      <p class="auth-note">🔒 Private area for the business owner. Accounts are created once via the Supabase dashboard — there is no public sign-up. Unlock attempts are rate-limited by Supabase Auth.</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ DASHBOARD VIEW ═══════════════════ -->
+  <div id="dash-view" hidden>
+    <header class="admin-top">
+      <a class="brand" href="index.html" style="text-decoration:none;">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span>Owner Studio</span>
+      </a>
+      <nav aria-label="Dashboard sections">
+        <button class="admin-tab active" data-tab="dashboard">Dashboard</button>
+        <button class="admin-tab" data-tab="gallery">Gallery</button>
+        <button class="admin-tab" data-tab="services">Services</button>
+        <button class="admin-tab" data-tab="settings">Settings</button>
+      </nav>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="tag" id="user-chip" title="Signed in">…</span>
+        <button class="btn btn-sm btn-outline" id="logout-btn">Log out</button>
+      </div>
+    </header>
+
+    <main class="wrap" style="padding-bottom:60px;">
+
+      <!-- ── TAB: Dashboard ─────────────────────────────────────── -->
+      <section class="tab-panel" data-tab="dashboard">
+        <div class="dash-grid">
+          <div class="glass-card stat"><span class="stat-num" id="stat-total">–</span><span class="stat-label">Gallery images</span><span class="stat-sub" id="stat-total-sub"></span></div>
+          <div class="glass-card stat"><span class="stat-num" id="stat-published">–</span><span class="stat-label">Published</span><span class="stat-sub" id="stat-pub-sub">Visible on the site</span></div>
+          <div class="glass-card stat"><span class="stat-num" id="stat-services">–</span><span class="stat-label">Services</span><span class="stat-sub" id="stat-svc-sub"></span></div>
+          <div class="glass-card stat"><span class="stat-num" id="stat-feat">–</span><span class="stat-label">Featured sets</span><span class="stat-sub">★ Marked favourites</span></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Quick actions</h2><p class="hint">The two things owners do most.</p></div>
+          </div>
+          <div class="quick-actions">
+            <button class="btn" data-goto="gallery">☁ Upload Photos</button>
+            <button class="btn btn-outline" data-goto="services">💅 Manage Services & Prices</button>
+            <button class="btn btn-outline" data-goto="settings">⚙ Business Settings</button>
+            <a class="btn btn-outline" href="index.html" target="_blank" rel="noopener">👀 View Public Site</a>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h2>Recent uploads</h2><p class="hint">Your five latest gallery photos.</p></div></div>
+          <div class="gallery-grid" id="recent-uploads" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));"></div>
+        </div>
+      </section>
+
+      <!-- ── TAB: Gallery ───────────────────────────────────────── -->
+      <section class="tab-panel" data-tab="gallery" hidden>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Upload nail photos</h2><p class="hint">JPEG/PNG/WebP/AVIF · up to 12 MB each (larger ones are compressed automatically) · pick several at once.</p></div>
+          </div>
+          <div class="upload-grid">
+            <div>
+              <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose photos to upload">
+                <strong>Drop photos here</strong>
+                <span>or tap to browse your gallery</span>
+              </div>
+              <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,image/avif" multiple hidden>
+              <div class="photo-previews" id="previews"></div>
+            </div>
+            <div>
+              <div class="settings-form wide" style="max-width:none; gap:14px;">
+                <div class="full">
+                  <label class="field-label" for="gal-title">Title</label>
+                  <input class="input" id="gal-title" placeholder="e.g. Blush Almond Gel — for Wanjiku" maxlength="120">
+                </div>
+                <div class="full">
+                  <label class="field-label" for="gal-desc">Description <span style="font-weight:500;color:var(--ink-faint)">(optional)</span></label>
+                  <input class="input" id="gal-desc" placeholder="e.g. Milky blush pink with a chrome accent" maxlength="240">
+                </div>
+                <div>
+                  <label class="field-label" for="gal-category">Gallery category</label>
+                  <select class="select" id="gal-category"></select>
+                </div>
+                <div>
+                  <span class="field-label">Visibility</span>
+                  <div style="display:flex; gap:18px; padding-top:8px;">
+                    <label class="switch"><input type="checkbox" id="gal-pub" checked><i></i>Published</label>
+                    <label class="switch"><input type="checkbox" id="gal-feat"><i></i>★ Featured</label>
+                  </div>
+                  <p class="hint">Unpublished photos stay private — only you see them until you publish.</p>
+                </div>
+              </div>
+              <button class="btn btn-block" id="upload-btn" style="margin-top:16px;" disabled>Upload Photos</button>
+              <div class="progresslist" id="upload-progress"></div>
+              <div class="form-msg" id="upload-msg"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Your photos</h2><p class="hint"><span id="gal-count">0</span> photos · published ones show on the public site.</p></div>
+            <button class="btn btn-sm btn-outline" id="gal-refresh">↻ Refresh</button>
+          </div>
+          <div class="manage-grid" id="gallery-manage">
+            <div class="skeleton" aria-hidden="true"></div><div class="skeleton" aria-hidden="true"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── TAB: Services ──────────────────────────────────────── -->
+      <section class="tab-panel" data-tab="services" hidden>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Services & pricing</h2><p class="hint">Everything here appears on the public site instantly — no HTML editing needed.</p></div>
+            <button class="btn" id="add-service-btn">+ Add Service</button>
+          </div>
+          <div class="manage-grid" id="services-manage">
+            <div class="skeleton" aria-hidden="true"></div><div class="skeleton" aria-hidden="true"></div>
+          </div>
+          <p class="hint" style="margin-top:14px;">💡 Starting price (KSh) is the “from” price shown on the cards; add-ons are quoted in the service details popup.</p>
+        </div>
+      </section>
+
+      <!-- ── TAB: Settings ──────────────────────────────────────── -->
+      <section class="tab-panel" data-tab="settings" hidden>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Business settings</h2><p class="hint" id="settings-source-hint">Saved values override the defaults in config.js.</p></div>
+          </div>
+          <form class="settings-form wide" id="settings-form">
+            <div><label class="field-label" for="st-name">Business name</label><input class="input" id="st-name" maxlength="60"></div>
+            <div><label class="field-label" for="st-logo">Logo image URL <span style="font-weight:500;color:var(--ink-faint)">(optional)</span></label><input class="input" id="st-logo" inputmode="url" placeholder="https://…"></div>
+            <div><label class="field-label" for="st-wa">WhatsApp number</label><input class="input" id="st-wa" inputmode="numeric" placeholder="2547XXXXXXXX" maxlength="15"></div>
+            <div><label class="field-label" for="st-ig">Instagram username</label><input class="input" id="st-ig" placeholder="yourbrand (no @)" maxlength="30"></div>
+            <div><label class="field-label" for="st-location">Studio / base location</label><input class="input" id="st-location" maxlength="80"></div>
+            <div><label class="field-label" for="st-hours">Business hours</label><input class="input" id="st-hours" maxlength="90"></div>
+            <div class="full"><label class="field-label" for="st-areas">House-call service areas <span style="font-weight:500;color:var(--ink-faint)">(separate with ; )</span></label><input class="input" id="st-areas" maxlength="200"></div>
+            <div class="full"><label class="field-label" for="st-transport">Transport / call-out fee policy</label><input class="input" id="st-transport" maxlength="140"></div>
+            <div class="full"><label class="field-label" for="st-instructions">Booking instructions (shown above the form)</label><textarea class="textarea" id="st-instructions" maxlength="400"></textarea></div>
+            <div class="full"><label class="field-label" for="st-disclaimer">Booking disclaimer (added to every WhatsApp message)</label><textarea class="textarea" id="st-disclaimer" maxlength="400"></textarea></div>
+            <div class="full" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <button type="submit" class="btn" id="settings-save">💾 Save Settings</button>
+              <button type="button" class="btn-ghost btn" id="settings-reset">Reset to config.js defaults</button>
+              <span class="form-msg" id="settings-msg"></span>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel danger-zone">
+          <div class="panel-head"><div><h2>Account</h2><p class="hint">Your login is protected by Supabase Auth.</p></div></div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+            <div>
+              <label class="field-label" for="pw-new">Change password</label>
+              <input class="input" type="password" id="pw-new" placeholder="New password (min 8 characters)" autocomplete="new-password" style="min-width:230px;">
+            </div>
+            <button class="btn btn-outline" id="pw-save">Update Password</button>
+            <span class="form-msg" id="pw-msg"></span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ── Service add/edit modal ────────────────────────────────────── -->
+  <div class="modal-root js-modal" id="svc-modal" hidden role="dialog" aria-modal="true" aria-labelledby="svc-modal-title">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-body" role="document">
+      <button class="icon-btn modal-close" data-close aria-label="Close">✕</button>
+      <div class="modal-scroll">
+        <h2 class="modal-title" id="svc-modal-title" style="font-size:1.4rem;">Add service</h2>
+        <form id="svc-form" class="settings-form wide" style="max-width:none; margin-top:10px;">
+          <div class="full">
+            <label class="field-label" for="svc-name">Service name *</label>
+            <input class="input" id="svc-name" maxlength="60" placeholder="e.g. Gel Nails" required>
+          </div>
+          <div>
+            <label class="field-label" for="svc-category">Category</label>
+            <select class="select" id="svc-category"></select>
+          </div>
+          <div>
+            <label class="field-label" for="svc-price">Starting price (KSh) *</label>
+            <input class="input" id="svc-price" type="number" min="0" step="50" inputmode="numeric" placeholder="1200" required>
+          </div>
+          <div>
+            <label class="field-label" for="svc-duration">Duration <span style="font-weight:500;color:var(--ink-faint)">(optional)</span></label>
+            <input class="input" id="svc-duration" maxlength="30" placeholder="e.g. 60–90 min">
+          </div>
+          <div>
+            <label class="field-label" for="svc-order">Display order</label>
+            <input class="input" id="svc-order" type="number" min="1" step="1" inputmode="numeric" placeholder="auto">
+          </div>
+          <div>
+            <label class="field-label" for="svc-cover">Cover photo URL</label>
+            <input class="input" id="svc-cover" inputmode="url" placeholder="https://… (or a gallery photo URL)">
+          </div>
+          <div class="full">
+            <label class="field-label" for="svc-desc">Description</label>
+            <textarea class="textarea" id="svc-desc" maxlength="400" placeholder="What the client gets, finishes, finishes like…"></textarea>
+          </div>
+          <div class="full">
+            <span class="field-label">Add-ons</span>
+            <div id="addon-rows" style="display:grid; gap:8px;"></div>
+            <button type="button" class="btn btn-sm btn-outline" id="addon-add" style="margin-top:8px;">+ Add add-on</button>
+          </div>
+          <div class="full" style="display:flex; gap:18px;">
+            <label class="switch"><input type="checkbox" id="svc-enabled" checked><i></i>Enabled (visible on site)</label>
+            <label class="switch"><input type="checkbox" id="svc-feat"><i></i>★ Featured</label>
+          </div>
+          <div class="full form-msg err" id="svc-msg" role="alert"></div>
+        </form>
+      </div>
+      <div class="summary-bar">
+        <button class="btn" id="svc-save">Save Service</button>
+        <button class="btn btn-outline" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Gallery photo edit modal ──────────────────────────────────── -->
+  <div class="modal-root js-modal" id="img-modal" hidden role="dialog" aria-modal="true" aria-labelledby="img-modal-title">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-body" role="document">
+      <button class="icon-btn modal-close" data-close aria-label="Close">✕</button>
+      <div class="modal-scroll">
+        <h2 class="modal-title" id="img-modal-title" style="font-size:1.4rem;">Edit photo</h2>
+        <img id="im-thumb" src="assets/placeholder.svg" alt="" style="width:100%; border-radius:14px; margin:8px 0 14px; aspect-ratio:4/3; object-fit:cover;">
+        <div class="settings-form" style="max-width:none;">
+          <div><label class="field-label" for="im-title">Title</label><input class="input" id="im-title" maxlength="120"></div>
+          <div><label class="field-label" for="im-desc">Description</label><input class="input" id="im-desc" maxlength="240"></div>
+          <div><label class="field-label" for="im-category">Category</label><select class="select" id="im-category"></select></div>
+          <label class="switch" style="justify-content:flex-start;"><input type="checkbox" id="im-feat"><i></i>★ Featured</label>
+          <div class="form-msg err" id="im-msg"></div>
+        </div>
+      </div>
+      <div class="summary-bar">
+        <button class="btn" id="im-save">Save Changes</button>
+        <button class="btn btn-outline" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Confirm dialog ────────────────────────────────────────────── -->
+  <div class="modal-root js-modal" id="confirm-modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-text">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-body" role="document" style="max-width:420px;">
+      <div class="modal-scroll" style="text-align:center;">
+        <span aria-hidden="true" style="font-size:2rem;">🗑️</span>
+        <p id="confirm-text" style="font-weight:600; margin-top:6px;">Are you sure?</p>
+      </div>
+      <div class="summary-bar" style="justify-content:center; gap:12px;">
+        <button class="btn btn-danger btn-sm" id="confirm-ok">Yes, delete</button>
+        <button class="btn btn-outline btn-sm" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toasts" aria-live="polite"></div>
+
+  <!-- Load order matters: config → supabase → ui → admin -->
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js" defer></script>
+  <script src="supabase.js" defer></script>
+  <script src="ui.js" defer></script>
+  <script src="admin.js" defer></script>
+</body>
+</html>
