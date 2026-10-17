@@ -38,12 +38,14 @@
      sensitive parts.
      ================================================================== */
   var refreshSeq = 0;
+  var slowCardTimer = null;
 
   function setPhase(phase) {
     var loading = $('#auth-loading'), auth = $('#auth-view'), dash = $('#dash-view');
     loading.hidden = phase !== 'loading';
     auth.hidden = phase !== 'auth';
     dash.hidden = phase !== 'dash';
+    if (phase !== 'loading') clearTimeout(slowCardTimer);
   }
 
   function showAuth(message) {
@@ -77,12 +79,18 @@
       refreshData();
       return;
     }
-    // no session → only leave the dashboard when we were actually in it
+    // no session → back to the login screen, whether we came from a live
+    // dashboard (sign-out/expired) or straight from the initial check
+    // (never show the dashboard without a verified session)
     if (!$('#dash-view').hidden) {
       console.debug('[mrembo-auth] dashboard closed (' + (reason || 'no session') + ') → login screen');
-      state.user = null;
+      showAuth('Your previous session ended or expired — please sign in again.');
+    } else {
+      console.debug('[mrembo-auth] no session at ' + (reason || 'boot') + ' → login screen');
       showAuth();
     }
+    state.user = null;
+    return;
   }
 
   /** Session genuinely became unusable (expired/blocked): explain, then leave. */
@@ -112,6 +120,13 @@
 
   async function boot() {
     setPhase('loading');
+    // keep the loading card honest: if it somehow lasts a while, say so
+    slowCardTimer = setTimeout(function () {
+      var lead = document.querySelector('#auth-loading .lead');
+      if (lead && lead.textContent.indexOf('slower') === -1) {
+        lead.innerHTML = '<span class="spinner" aria-hidden="true"></span> Still checking — this can take a little longer on a slow connection.';
+      }
+    }, 3000);
     if (!SETUP.isConfigured()) {
       setPhase('auth');
       var m = $('#login-msg');
@@ -139,15 +154,30 @@
       }
     });
 
-    // 2) then do the explicit initial session check
-    try {
-      var res = await client.auth.getSession();
+    // 2) then do the explicit initial session check (never let it pin the
+    //    loading phase indefinitely — a slow token refresh on a weak mobile
+    //    connection can otherwise stall it for a long time)
+    var initialResolved = false;
+    var t0 = performance.now();
+    var sessionPromise = client.auth.getSession().then(function (res) {
       var session = res && res.data ? res.data.session : null;
-      console.debug('[mrembo-auth] initial check: ' + (session ? 'valid session found' : 'no session — login'));
+      initialResolved = true;
+      console.debug('[mrembo-auth] initial check finished in ' + Math.round(performance.now() - t0) + 'ms: ' + (session ? 'valid session' : 'no session — login'));
       applySession(session, 'initial-check');
-    } catch (e) {
+    }).catch(function (e) {
+      initialResolved = true;
       console.debug('[mrembo-auth] initial check failed: ' + shortErr(e));
       showAuth('Could not check your session: ' + shortErr(e));
+    });
+    await Promise.race([
+      sessionPromise,
+      new Promise(function (r) { setTimeout(r, 6000); })
+    ]);
+    if (!initialResolved) {
+      // show login with a notice; when the check lands it still applies the
+      // real state (applySession is idempotent, so the dashboard appears then)
+      console.debug('[mrembo-auth] initial check still running after 6s — releasing the loading screen');
+      showAuth('Checking your session is taking longer than usual (slow connection?). You can sign in below — if a saved session is found, the dashboard will open automatically.');
     }
   }
 

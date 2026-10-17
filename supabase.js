@@ -24,6 +24,42 @@
 
   var clientPromise = null;
 
+  function libReady() {
+    return global.supabase && typeof global.supabase.createClient === 'function';
+  }
+
+  /* The library is now vendored locally (assets/vendor/supabase.js), so it
+     normally loads immediately. If the local file is ever missing, fall back
+     to the jsDelivr CDN — injected from here so page scripts are never left
+     waiting on a network fetch before they can run. */
+  function injectCdnFallback() {
+    if (global.__MREMBO_CDN_FALLBACK) return;
+    global.__MREMBO_CDN_FALLBACK = true;
+    console.debug('[Mrembo] Supabase library failed to load locally — retrying via CDN.');
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js';
+    s.async = true;
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  /** Resolves true once global.supabase exists; false after `ms` of waiting. */
+  function waitForSupabaseLib(ms) {
+    return new Promise(function (resolve) {
+      if (libReady()) return resolve(true);
+      var started = Date.now();
+      var cdnPoll = setInterval(function () {
+        if (!global.__MREMBO_CDN_FALLBACK && Date.now() - started > 2500) injectCdnFallback();
+      }, 500);
+      var timer = setInterval(function () {
+        if (libReady()) {
+          clearInterval(timer); clearInterval(cdnPoll); resolve(true);
+        } else if (Date.now() - started > ms) {
+          clearInterval(timer); clearInterval(cdnPoll); resolve(false);
+        }
+      }, 150);
+    });
+  }
+
   function isConfigured() {
     var tpl = /YOUR-|PASTE|PROJECT-REF/i;
     return !tpl.test(SUPABASE_URL) && !tpl.test(SUPABASE_ANON_KEY);
@@ -32,21 +68,26 @@
   /** Returns a Promise<SupabaseClient|null>. null ⇒ not configured yet. */
   function getClient() {
     if (!isConfigured()) return Promise.resolve(null);
-    if (!global.supabase || typeof global.supabase.createClient !== 'function') {
-      return Promise.reject(new Error('Supabase JS library did not load — check your internet connection / CDN.'));
-    }
     if (!clientPromise) {
       // supabase-js v2 createClient() returns the CLIENT OBJECT synchronously,
       // not a promise — wrap it so callers can always rely on Promise semantics
-      // (fetchPublicContent uses .catch on this).
-      clientPromise = Promise.resolve(global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,   // handles password-recovery links landing on /admin.html
-          storageKey: STORAGE_KEY
+      // (fetchPublicContent uses .catch on this). We briefly wait for the
+      // library (vendored locally, CDN fallback) instead of failing instantly,
+      // so a slightly delayed script can never break the site.
+      clientPromise = waitForSupabaseLib(8000).then(function (ok) {
+        if (!ok) {
+          clientPromise = null;          // allow a retry on the next call
+          throw new Error('The Supabase library did not load (local file or CDN unreachable). Check your internet connection and reload.');
         }
-      }));
+        return global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,   // handles password-recovery links landing on /admin.html
+            storageKey: STORAGE_KEY
+          }
+        });
+      });
     }
     return clientPromise;
   }
