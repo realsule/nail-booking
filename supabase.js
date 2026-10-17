@@ -15,8 +15,8 @@
 (function (global) {
   'use strict';
 
-  var SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';      // 👑 paste your Project URL
-  var SUPABASE_ANON_KEY = 'YOUR-PUBLISHABLE-ANON-KEY';            // 👑 paste your anon key (starts with "eyJ…")
+  var SUPABASE_URL = 'https://vcnfcxpzhjgwsditaxrs.supabase.co';      // 👑 paste your Project URL
+  var SUPABASE_ANON_KEY = 'sb_publishable_AYA9_GB6ayL6lWH_7Ji9lQ_fM_Lzsia';            // 👑 paste your anon key (starts with "eyJ…")
 
   var BUCKET = 'nail-photos';      // public storage bucket created by supabase-setup.sql
   var STORAGE_KEY = 'mrembo-nails-auth'; // avoids clashing with other apps on this domain
