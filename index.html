@@ -61,10 +61,10 @@
             Luxury nail experiences, delivered to your doorstep.
           </p>
           <div style="display:flex; gap:12px; flex-wrap:wrap;">
-            <a href="#gallery" class="btn btn-lg">Explore Nail Designs</a>
+            <a href="#gallery" class="btn btn-lg" id="hero-explore">Explore Nail Designs</a>
             <a href="#book" class="btn btn-lg btn-wa" id="hero-wa" data-scroll>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.2 14c-.2.6-1.2 1.2-1.7 1.2-.4 0-1 .1-3.3-.9-2.8-1.2-4.6-4.1-4.7-4.3-.1-.2-1.1-1.6-1.1-3s.7-2.1 1-2.4c.2-.3.5-.4.7-.4h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6L9.6 10c-.1.2-.2.4 0 .6.4.7 1 1.5 1.6 2 .7.6 1.3.9 1.7 1.1.2.1.4 0 .5-.1l.9-1c.2-.2.4-.2.6-.1l2.1 1c.2.1.4.2.4.4s0 1-.2 1.1Z"/></svg>
-              Book on WhatsApp
+              <span id="hero-wa-label">Book on WhatsApp</span>
             </a>
           </div>
           <p style="font-size:0.85rem; color:var(--ink-faint); margin-top:14px;" id="hero-meta">Kilimani, Nairobi · Instagram: @mrembo.nails</p>
@@ -73,11 +73,11 @@
           <div style="border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-lg); aspect-ratio:4/4.4; background:var(--grad-pink);">
             <img id="hero-image" src="assets/placeholder.svg" alt="Fresh set of glossy nails, a sample from the studio" fetchpriority="high" style="width:100%;height:100%;object-fit:cover;">
           </div>
-          <div class="glass-card" style="position:absolute; left:14px; bottom:-18px; padding:12px 18px; border-radius:18px; display:flex; align-items:center; gap:10px;">
+          <div class="glass-card" id="hero-from-card" style="position:absolute; left:14px; bottom:-18px; padding:12px 18px; border-radius:18px; display:flex; align-items:center; gap:10px;">
             <span style="font-size:1.3rem;" aria-hidden="true">💅</span>
             <div>
-              <div style="font-weight:700; font-size:0.9rem;">From <span id="hero-from">KSh 800</span></div>
-              <div style="font-size:0.72rem; color:var(--ink-faint);">Manicure & gel sets</div>
+              <div style="font-weight:700; font-size:0.9rem;"><span id="hero-from-label">From</span> <span id="hero-from">KSh 800</span></div>
+              <div id="hero-from-caption" style="font-size:0.72rem; color:var(--ink-faint);">Manicure & gel sets</div>
             </div>
           </div>
         </div>
@@ -89,7 +89,7 @@
       <div class="wrap">
         <div class="section-head">
           <span class="kicker">Services & Pricing</span>
-          <h2 class="section-title">Choose Your Ritual</h2>
+          <h2 class="section-title" id="services-title">Choose Your Ritual</h2>
           <p class="section-sub" id="services-sub">
             Prices below are starting rates in Kenyan shillings — the final quote depends on length, design and add-ons.
           </p>
@@ -108,8 +108,8 @@
       <div class="wrap">
         <div class="section-head">
           <span class="kicker">Nail Inspiration</span>
-          <h2 class="section-title">The Inspiration Wall</h2>
-          <p class="section-sub">Real sets from the studio. Tap any photo to view it up close — find the look you want and mention it when booking.</p>
+          <h2 class="section-title" id="gallery-title">The Inspiration Wall</h2>
+          <p class="section-sub" id="gallery-sub">Real sets from the studio. Tap any photo to view it up close — find the look you want and mention it when booking.</p>
         </div>
         <div class="chips" id="gallery-filters" role="group" aria-label="Filter gallery by category"></div>
         <div class="gallery-grid" id="gallery-grid"></div>
@@ -121,11 +121,11 @@
       <div class="wrap house-split">
         <div class="house-photo reveal">
           <img id="tech-image" src="assets/placeholder.svg" alt="The nail technician at work during a home visit" loading="lazy">
-          <div class="house-photo-tag"><span aria-hidden="true">🚗</span> We come to you — set-up, session & spotless cleanup</div>
+          <div class="house-photo-tag"><span aria-hidden="true">🚗</span> <span id="house-tag">We come to you — set-up, session &amp; spotless cleanup</span></div>
         </div>
         <div class="house-info">
           <span class="kicker">House Calls</span>
-          <h2 class="reveal">Beauty Comes to You</h2>
+          <h2 class="reveal" id="house-title">Beauty Comes to You</h2>
           <p class="reveal" id="house-desc"></p>
           <ul class="house-facts">
             <li><b>📍 Studio</b><span id="fact-studio"></span></li>
@@ -143,7 +143,7 @@
       <div class="wrap">
         <div class="section-head">
           <span class="kicker">Booking</span>
-          <h2 class="section-title">Reserve Your Moment</h2>
+          <h2 class="section-title" id="booking-title">Reserve Your Moment</h2>
           <p class="section-sub" id="booking-instructions"></p>
         </div>
 
@@ -196,12 +196,12 @@
 
     <!-- ── CTA band ─────────────────────────────────────────────────── -->
     <section class="wrap">
-      <div class="cta-band reveal">
-        <h2 class="cta-band-title">Ready for your next set?</h2>
-        <p class="cta-band-sub">Follow the daily work on Instagram, or book directly on WhatsApp.</p>
+      <div class="cta-band reveal" id="cta-band">
+        <h2 class="cta-band-title" id="cta-band-title">Ready for your next set?</h2>
+        <p class="cta-band-sub" id="cta-band-sub">Follow the daily work on Instagram, or book directly on WhatsApp.</p>
         <div class="cta-band-actions">
-          <a class="btn btn-lg" id="band-wa" href="#" data-scroll>WhatsApp Us</a>
-          <a class="btn btn-lg btn-outline" id="band-ig" href="#" target="_blank" rel="noopener">Follow on Instagram</a>
+          <a class="btn btn-lg" id="band-wa" href="#" data-scroll><span id="band-wa-label">WhatsApp Us</span></a>
+          <a class="btn btn-lg btn-outline" id="band-ig" href="#" target="_blank" rel="noopener"><span id="band-ig-label">Follow on Instagram</span></a>
         </div>
       </div>
     </section>
@@ -225,7 +225,7 @@
         <a href="admin.html" rel="nofollow" style="color:var(--ink-faint);">Owner login</a>
       </div>
     </div>
-    <div class="wrap footer-note">© <span id="foot-year"></span> <span id="foot-brand">Mrembo Nails</span> · Nail artistry in Kenya · Appointments confirmed by the artist via WhatsApp/Instagram</div>
+    <div class="wrap footer-note">© <span id="foot-year"></span> <span id="foot-brand">Mrembo Nails</span><span id="foot-note"> · Nail artistry in Kenya · Appointments confirmed by the artist via WhatsApp/Instagram</span></div>
   </footer>
 
   <!-- ── Floating WhatsApp action ──────────────────────────────────── -->

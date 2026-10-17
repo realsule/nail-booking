@@ -97,12 +97,53 @@
     if (igA) igA.href = igLink;
   }
 
+  function tokenize(text, name) {
+    return String(text == null ? '' : text)
+      .replace(/\{year\}/g, new Date().getFullYear())
+      .replace(/\{brand\}/g, String(name));
+  }
+
   function applySettings() {
     var s = state.settings;
     var name = s.businessName || 'Mrembo Nails';
     document.title = name + ' — Luxury Nail Experiences in Kenya';
     var og1 = document.querySelector('meta[property="og:title"]');
     if (og1) og1.setAttribute('content', name + ' — Your Nails. Your Mood. Your Moment.');
+
+    // search-engine / share description (safe: both are plain attributes)
+    if (s.metaDescription) {
+      var md = document.querySelector('meta[name="description"]');
+      var ogd = document.querySelector('meta[property="og:description"]');
+      if (md) md.setAttribute('content', s.metaDescription);
+      if (ogd) ogd.setAttribute('content', s.metaDescription);
+    }
+
+    // hero buttons (textContent on the label spans keeps the button icons intact)
+    var maybeText = function (id, key, fallback) {
+      var el = $('#' + id);
+      if (el) el.textContent = s[key] || fallback;
+    };
+    maybeText('hero-wa-label', 'heroCtaPrimaryLabel', 'Book on WhatsApp');
+    maybeText('hero-explore', 'heroCtaSecondaryLabel', 'Explore Nail Designs');
+    maybeText('band-wa-label', 'heroCtaPrimaryLabel', 'WhatsApp Us');
+    maybeText('band-ig-label', 'heroCtaPrimaryLabel', 'Follow on Instagram');
+
+    // section headings & copy
+    maybeText('services-title', 'servicesSectionTitle', 'Choose Your Ritual');
+    maybeText('services-sub', 'servicesSectionSub', 'Prices below are starting rates in Kenyan shillings — the final quote depends on length, design and add-ons.');
+    maybeText('gallery-title', 'gallerySectionTitle', 'The Inspiration Wall');
+    maybeText('gallery-sub', 'gallerySectionSub', 'Real sets from the studio. Tap any photo to view it up close — find the look you want and mention it when booking.');
+    maybeText('booking-title', 'bookingSectionTitle', 'Reserve Your Moment');
+    maybeText('house-title', 'houseSectionTitle', 'Beauty Comes to You');
+    maybeText('house-tag', 'housePhotoTag', 'We come to you — set-up, session & spotless cleanup');
+
+    // promo band
+    maybeText('cta-band-title', 'ctaBandTitle', 'Ready for your next set?');
+    maybeText('cta-band-sub', 'ctaBandSubtitle', 'Follow the daily work on Instagram, or book directly on WhatsApp.');
+
+    // footer sign-off ({year} / {brand} tokens)
+    var note = $('#foot-note');
+    if (note) note.textContent = tokenize(s.footerNote || ' · Nail artistry in Kenya · Appointments confirmed by the artist via WhatsApp/Instagram', name);
 
     var initial = (name.trim().charAt(0) || 'M').toUpperCase();
     $('#brand-name').textContent = name;
@@ -142,6 +183,38 @@
 
     $('#foot-location').textContent = s.studioLocation || '';
     $('#foot-year').textContent = new Date().getFullYear();
+
+    // "From KSh …" hero chip — derived from the LIVE cheapest service
+    var fromCard = $('#hero-from-card');
+    var prices = state.services
+      .filter(function (sv) { return sv.enabled !== false; })
+      .map(function (sv) { return Number(sv.price); })
+      .filter(function (p) { return isFinite(p) && p >= 0; });
+    if (s.showHeroFrom !== false && prices.length) {
+      fromCard.hidden = false;
+      $('#hero-from-label').textContent = s.heroFromLabel || 'From';
+      $('#hero-from').textContent = UI.fmtKSh(Math.min.apply(null, prices));
+      $('#hero-from-caption').textContent = s.heroFromCaption || 'Manicure & gel sets';
+    } else {
+      fromCard.hidden = true;
+    }
+
+    // section visibility (gallery / house-call panel / promo band)
+    var show = key => s[key] !== false;
+    var setSectionVisible = function (sel, on) {
+      var sec = document.querySelector(sel);
+      if (sec) sec.hidden = !on;
+      // every anchor pointing at a hidden section (nav, drawer, footer)
+      document.querySelectorAll('a[href="' + sel + '"]').forEach(function (a) { a.hidden = !on; });
+      if (sel === '#gallery') {
+        var explore = document.getElementById('hero-explore');
+        if (explore) explore.hidden = !on;
+      }
+    };
+    setSectionVisible('#gallery', show('showGallerySection'));
+    setSectionVisible('#house-calls', show('showHouseCallSection'));
+    var ctaBand = $('#cta-band');
+    if (ctaBand) ctaBand.hidden = !show('showCtaBand');
 
     updateWaButtons();
   }

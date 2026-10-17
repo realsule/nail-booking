@@ -48,10 +48,41 @@
     heroDescription: 'Luxury nail experiences, delivered to your doorstep.',
     heroImage: pic('photo-1487412947147-5cebf100ffc2'),
     technicianImage: pic('photo-1599948128020-9a44505b0d1b'),
+    metaDescription:
+      'Luxury mobile nail services in Nairobi — gel, acrylic, French tips, ' +
+      'bridal sets and nail art at your door. Book on WhatsApp today.',
+    heroCtaPrimaryLabel: 'Book on WhatsApp',
+    heroCtaSecondaryLabel: 'Explore Nail Designs',
+    heroFromLabel: 'From',                 // shown before the cheapest service price
+    heroFromCaption: 'Manicure & gel sets',
+    showHeroFrom: true,                    // hide if you'd rather not show prices in hero
+
+    // -- section headings (the public page uses these instantly) --
+    servicesSectionTitle: 'Choose Your Ritual',
+    servicesSectionSub:
+      'Every service is a small ritual. Pick a set below — the final quote ' +
+      'depends on length, design and add-ons.',
+    gallerySectionTitle: 'The Inspiration Wall',
+    gallerySectionSub: 'Real sets from the studio — saved, styled and ready for your feed.',
+    bookingSectionTitle: 'Reserve Your Moment',
+    houseSectionTitle: 'Beauty Comes to You',
+    housePhotoTag: 'We come to you — all of it.',
+
+    // -- bottom promo band --
+    ctaBandTitle: 'Ready for your next set?',
+    ctaBandSubtitle: 'DM or WhatsApp your inspiration today — I’ll handle the artistry.',
+    showCtaBand: true,
+
+    // -- toggle whole sections on the public page --
+    showGallerySection: true,
+    showHouseCallSection: true,
+
+    // -- footer sign-off (the sentence AFTER "© year Brand"; {year} & {brand} tokens work here too) --
+    footerNote: ' · Nail artistry in Kenya · Appointments confirmed by the artist via WhatsApp/Instagram',
 
     // 👑 CONFIGURE: international format WITHOUT '+', spaces or a leading 0.
     // e.g. 0712 345 678 → '254712345678'. Leave '' until launch is ready.
-    whatsappNumber: '',
+    whatsappNumber: '254739394636',
 
     instagramUsername: 'mrembo.nails', // 👑 CONFIGURE (no @ needed)
     logoUrl: '', // optional image logo; blank = elegant text logo
@@ -81,7 +112,7 @@
   var GALLERY_CATEGORIES = ['Nude Nails', 'Pink Nails', 'French Tips', 'Chrome', 'Acrylic', 'Bridal', 'Nail Art'];
 
   /* ----------------------------------------------------------------
-     Starter services (font of all prices = KSh). The admin dashboard
+     Starter services (the single source of all starting prices = KSh). The admin dashboard
      replaces these with live records once services exist in Supabase.
      ---------------------------------------------------------------- */
   var DEFAULT_SERVICES = [
@@ -117,7 +148,7 @@
       category: 'Acrylic',
       price: 1500,
       duration: '2–2.5 hrs',
-      description: 'Custom length & shape — almond, cofloat, square — sculpted strong and lightweight.',
+      description: 'Custom length & shape — almond, coffin, square — sculpted strong and lightweight.',
       addons: [
         { label: 'Extra-long length', price: 300 },
         { label: 'Ombré / baby-boomer blend', price: 400 },
@@ -179,6 +210,7 @@
       category: category,
       description: description,
       image_url: pic(id),
+      source: 'external', // inspiration links, not stored in the owner's bucket
       featured: !!featured,
       storage_path: null,
       published: true

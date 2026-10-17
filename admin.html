@@ -17,8 +17,17 @@
 <body>
   <div class="page-glow" aria-hidden="true"></div>
 
+  <!-- ═══════════════════ SESSION CHECK (brief) ═══════════════════ -->
+  <div class="auth-wrap" id="auth-loading">
+    <div class="glass-card auth-card" style="text-align:center;">
+      <div class="auth-mark" aria-hidden="true">M</div>
+      <h1>One moment…</h1>
+      <p class="lead"><span class="spinner" aria-hidden="true"></span> Checking your session.</p>
+    </div>
+  </div>
+
   <!-- ═══════════════════ LOGIN VIEW ═══════════════════ -->
-  <div class="auth-wrap" id="auth-view">
+  <div class="auth-wrap" id="auth-view" hidden>
     <div class="glass-card auth-card">
       <div class="auth-mark" aria-hidden="true">M</div>
       <h1>Welcome back ✨</h1>
@@ -111,6 +120,20 @@
             <div>
               <div class="settings-form wide" style="max-width:none; gap:14px;">
                 <div class="full">
+                  <label class="field-label" for="gal-source">Photo source</label>
+                  <select class="select" id="gal-source">
+                    <option value="upload">☁ Upload from my device</option>
+                    <option value="ai_generated">✨ Upload AI-generated art</option>
+                    <option value="external">🔗 Publish an external image URL</option>
+                  </select>
+                  <p class="hint" id="gal-source-hint">AI-generated sets: generate with your favourite tool, then upload here to publish it safely on your own site.</p>
+                </div>
+                <div class="full" id="gal-external-row" hidden>
+                  <label class="field-label" for="gal-external-url">External image URL</label>
+                  <input class="input" id="gal-external-url" inputmode="url" placeholder="https://… (direct link to the .jpg/.png)">
+                  <p class="hint">The photo stays wherever it is hosted; only your gallery record lives in Supabase. Delete removes your record, not the external file.</p>
+                </div>
+                <div class="full">
                   <label class="field-label" for="gal-title">Title</label>
                   <input class="input" id="gal-title" placeholder="e.g. Blush Almond Gel — for Wanjiku" maxlength="120">
                 </div>
@@ -142,6 +165,16 @@
           <div class="panel-head">
             <div><h2>Your photos</h2><p class="hint"><span id="gal-count">0</span> photos · published ones show on the public site.</p></div>
             <button class="btn btn-sm btn-outline" id="gal-refresh">↻ Refresh</button>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px;">
+            <input class="input" id="gal-search" type="search" placeholder="🔍 Search titles & descriptions…" style="flex:1 1 240px; max-width:340px;">
+            <select class="select" id="gal-source-filter" style="max-width:230px;">
+              <option value="">All kinds of photos</option>
+              <option value="upload">☁ Device uploads</option>
+              <option value="ai_generated">✨ AI-generated</option>
+              <option value="external">🔗 External links</option>
+            </select>
+            <span class="mini" id="gal-filter-count" style="color:var(--ink-faint);"></span>
           </div>
           <div class="manage-grid" id="gallery-manage">
             <div class="skeleton" aria-hidden="true"></div><div class="skeleton" aria-hidden="true"></div>
@@ -180,6 +213,34 @@
             <div class="full"><label class="field-label" for="st-transport">Transport / call-out fee policy</label><input class="input" id="st-transport" maxlength="140"></div>
             <div class="full"><label class="field-label" for="st-instructions">Booking instructions (shown above the form)</label><textarea class="textarea" id="st-instructions" maxlength="400"></textarea></div>
             <div class="full"><label class="field-label" for="st-disclaimer">Booking disclaimer (added to every WhatsApp message)</label><textarea class="textarea" id="st-disclaimer" maxlength="400"></textarea></div>
+
+            <div class="full"><h3 style="font-family:'Playfair Display',serif;font-size:1.15rem;margin:18px 0 2px;">Homepage & public text</h3><p class="hint">These are the words and headings visitors actually read — change them any time.</p></div>
+            <div><label class="field-label" for="st-headline">Hero headline</label><input class="input" id="st-headline" maxlength="90"></div>
+            <div><label class="field-label" for="st-hero-sub">Hero subtitle</label><input class="input" id="st-hero-sub" maxlength="140"></div>
+            <div class="full"><label class="field-label" for="st-hero-img">Hero photo URL</label><input class="input" id="st-hero-img" inputmode="url" placeholder="https://…"></div>
+            <div class="full"><label class="field-label" for="st-tech-img">House-call photo URL</label><input class="input" id="st-tech-img" inputmode="url" placeholder="https://…"></div>
+            <div><label class="field-label" for="st-hero-btn1">Hero primary button label</label><input class="input" id="st-hero-btn1" maxlength="40"></div>
+            <div><label class="field-label" for="st-hero-btn2">Hero secondary button label</label><input class="input" id="st-hero-btn2" maxlength="40"></div>
+            <div><label class="field-label" for="st-services-title">Services heading</label><input class="input" id="st-services-title" maxlength="70"></div>
+            <div><label class="field-label" for="st-gallery-title">Gallery heading</label><input class="input" id="st-gallery-title" maxlength="70"></div>
+            <div class="full"><label class="field-label" for="st-services-sub">Services sub-copy</label><input class="input" id="st-services-sub" maxlength="200"></div>
+            <div class="full"><label class="field-label" for="st-gallery-sub">Gallery sub-copy</label><input class="input" id="st-gallery-sub" maxlength="200"></div>
+            <div><label class="field-label" for="st-booking-title">Booking heading</label><input class="input" id="st-booking-title" maxlength="70"></div>
+            <div><label class="field-label" for="st-house-title">House-call heading</label><input class="input" id="st-house-title" maxlength="70"></div>
+            <div class="full"><label class="field-label" for="st-house-tag">House-call photo tag line</label><input class="input" id="st-house-tag" maxlength="80"></div>
+            <div class="full"><label class="field-label" for="st-meta">Search-engine description (meta)</label><input class="input" id="st-meta" maxlength="260"></div>
+            <div class="full"><label class="field-label" for="st-footer">Footer note <span style="font-weight:500;color:var(--ink-faint)">({year} and {brand} allowed)</span></label><input class="input" id="st-footer" maxlength="240"></div>
+            <div><label class="field-label" for="st-cta-title">Promo band title</label><input class="input" id="st-cta-title" maxlength="90"></div>
+            <div><label class="field-label" for="st-cta-sub">Promo band subtitle</label><input class="input" id="st-cta-sub" maxlength="160"></div>
+            <div class="full">
+              <span class="field-label">Show or hide</span>
+              <div style="display:flex; gap:18px; flex-wrap:wrap; padding-top:8px;">
+                <label class="switch"><input type="checkbox" id="st-show-gal"><i></i>Gallery section</label>
+                <label class="switch"><input type="checkbox" id="st-show-house"><i></i>House-call panel</label>
+                <label class="switch"><input type="checkbox" id="st-show-cta"><i></i>Promo band</label>
+              </div>
+            </div>
+
             <div class="full" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
               <button type="submit" class="btn" id="settings-save">💾 Save Settings</button>
               <button type="button" class="btn-ghost btn" id="settings-reset">Reset to config.js defaults</button>
@@ -234,6 +295,10 @@
           <div>
             <label class="field-label" for="svc-cover">Cover photo URL</label>
             <input class="input" id="svc-cover" inputmode="url" placeholder="https://… (or a gallery photo URL)">
+          </div>
+          <div>
+            <label class="field-label" for="svc-cover-pick">…or pick from your gallery</label>
+            <select class="select" id="svc-cover-pick"><option value="">— Choose an uploaded photo —</option></select>
           </div>
           <div class="full">
             <label class="field-label" for="svc-desc">Description</label>

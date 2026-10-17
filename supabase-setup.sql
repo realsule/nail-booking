@@ -47,6 +47,10 @@ create table if not exists public.gallery_items (
                  ('Nude Nails','Pink Nails','French Tips','Chrome','Acrylic','Bridal','Nail Art')),
   image_url    text not null default '',
   storage_path text,
+  -- where the photo came from: upload (owner file), ai_generated
+  -- (imported AI art) or external (a link, not stored in Supabase)
+  source       text not null default 'upload'
+               check (source in ('upload','ai_generated','external')),
   published    boolean not null default false,
   featured     boolean not null default false,
   sort_order   numeric not null default 100,
@@ -182,6 +186,10 @@ create policy "owner deletes nail photos" on storage.objects
 
 -- ──────────────────────────────────────────────────────────────
 -- 5) DONE ✅
---    Next: create the owner account (README step 5), paste the URL +
---    anon key into supabase.js, then log in at /admin.html.
+--    Next steps (README has the details):
+--      • create the owner account (README step 5)
+--      • run supabase-migrate-2.sql — registers the owner in the
+--        app_owners whitelist and locks writes to it
+--      • paste the URL + anon key into supabase.js, then log in
+--        at /admin.html
 -- ──────────────────────────────────────────────────────────────

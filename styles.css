@@ -557,7 +557,7 @@ input[type="radio"].mode-choice:checked + label {
 .fab-wa:hover { transform: translateY(-3px); }
 .icon-circle {
   display: inline-grid; place-items: center; width: 26px; height: 26px;
-  background: rgba(255,255,255,0.22); border-radius: 50; border-radius: 50%;
+  background: rgba(255,255,255,0.22); border-radius: 50%;
 }
 
 .toasts {
@@ -683,6 +683,9 @@ input[type="radio"].mode-choice:checked + label {
 .tag-on { background: var(--ok-soft); color: var(--ok); }
 .tag-off { background: rgba(54,38,48,0.1); color: var(--ink-faint); }
 .tag-feat { background: rgba(242, 166, 190, 0.4); color: var(--rose); }
+.tag-src-ai { background: var(--lav-soft, rgba(221,214,255,0.55)); color: #5a4b8a; }
+.dropzone.disabled { opacity: 0.45; cursor: not-allowed; border-style: dashed; }
+#auth-loading .lead { display: flex; align-items: center; justify-content: center; gap: 10px; }
 
 .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); }
 .switch input { display: none; }

@@ -10,7 +10,7 @@
 
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
-      return { '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
 
@@ -62,7 +62,8 @@
     if (openStack.indexOf(el) !== -1) return;
     el.dataset.focusBefore = (document.activeElement && document.activeElement.id) || '';
     el.hidden = false;
-    requestAnimationFrame(function () { el.classList.add('open'); });
+    void el.offsetWidth;            // force reflow so the transition starts cleanly
+    el.classList.add('open');       // synchronous — even in throttled/background tabs
     document.body.classList.add('no-scroll');
     openStack.push(el);
     setTimeout(function () {

@@ -28,22 +28,77 @@
   }
 
   /* ==================================================================
-     AUTH
+     AUTH — one lifecycle, one source of truth.
+     Phases: 'loading' (session unresolved) → 'auth' (login) or 'dash'.
+     applySession() is idempotent so duplicate events can never flip the
+     UI back and forth; ONLY a real sign-out (or an actual 401 on the
+     owner's data) returns you to the login screen — transient events
+     that carry no session (early INITIAL_SESSION, refresh flaps) are
+     deliberately ignored. Debug logs never include tokens or emails'
+     sensitive parts.
      ================================================================== */
+  var refreshSeq = 0;
+
+  function setPhase(phase) {
+    var loading = $('#auth-loading'), auth = $('#auth-view'), dash = $('#dash-view');
+    loading.hidden = phase !== 'loading';
+    auth.hidden = phase !== 'auth';
+    dash.hidden = phase !== 'dash';
+  }
+
   function showAuth(message) {
-    $('#dash-view').hidden = true;
-    $('#auth-view').hidden = false;
+    setPhase('auth');
     if (message) {
       var m = $('#login-msg');
       m.textContent = message;
       m.hidden = false;
     }
   }
+
   function showDash(user) {
-    $('#auth-view').hidden = true;
-    $('#dash-view').hidden = false;
+    setPhase('dash');
     $('#user-chip').textContent = user.email || 'owner';
-    refreshData();
+  }
+
+  /**
+   * Central session applier. Idempotent: re-applying the SAME user never
+   * re-initialises the dashboard, and a null session only exits the
+   * dashboard when it really is a sign-out.
+   */
+  function applySession(session, reason) {
+    var user = session && session.user ? session.user : null;
+    if (user) {
+      var already = state.user && state.user.id === user.id && !$('#dash-view').hidden;
+      console.debug('[mrembo-auth] session applied (' + (reason || 'session') + ') — ' + (already ? 'already showing dashboard' : 'showing dashboard'));
+      state.user = user; // ← critical: refreshData()/save depend on this
+      if (already) return;
+      showDash(user);
+      showTab('dashboard');
+      refreshData();
+      return;
+    }
+    // no session → only leave the dashboard when we were actually in it
+    if (!$('#dash-view').hidden) {
+      console.debug('[mrembo-auth] dashboard closed (' + (reason || 'no session') + ') → login screen');
+      state.user = null;
+      showAuth();
+    }
+  }
+
+  /** Session genuinely became unusable (expired/blocked): explain, then leave. */
+  function sessionEnd(reason, info) {
+    console.debug('[mrembo-auth] ending session: ' + reason);
+    state.user = null;
+    state.pending.forEach(function (p) { URL.revokeObjectURL(p.url); });
+    state.pending = [];
+    renderPending();
+    showAuth(info);
+  }
+
+  function looksAuthRelated(err) {
+    var s = (err && (err.message || String(err))) || '';
+    return err && (err.status === 401 || err.status === 403 ||
+      /jwt|expired|not authorised|not authorized|permission denied|row-level security|RLS/i.test(s));
   }
 
   function friendlyAuthError(e) {
@@ -56,7 +111,9 @@
   }
 
   async function boot() {
+    setPhase('loading');
     if (!SETUP.isConfigured()) {
+      setPhase('auth');
       var m = $('#login-msg');
       m.textContent = 'Supabase is not configured yet. Paste your Project URL and anon/publishable key into supabase.js (see README → step 4), then reload this page.';
       m.hidden = false;
@@ -69,23 +126,29 @@
     try { client = await SETUP.getClient(); }
     catch (e) { showAuth('Could not reach Supabase: ' + shortErr(e)); return; }
 
-    try {
-      var res = await client.auth.getSession();
-      if (res && res.data && res.data.session) showDash(res.data.session.user);
-      else showAuth();
-    } catch (e) { showAuth('Could not check your session: ' + shortErr(e)); }
-
+    // 1) subscribe FIRST so no event can slip between the checks
     client.auth.onAuthStateChange(function (evt, session) {
-      if (evt === 'SIGNED_OUT' || !session) {
-        if (!$('#dash-view').hidden) showAuth();
-        return;
-      }
-      if ($('#dash-view').hidden) showDash(session.user);
+      console.debug('[mrembo-auth] event: ' + evt + (session ? ' (with session)' : ' (no session)'));
+      if (evt === 'INITIAL_SESSION') return;        // initial check below owns it
+      if (evt === 'SIGNED_OUT' || evt === 'SIGNED_OUT_EVENT') { applySession(null, evt); return; }
+      if (!session) return;                          // transient event w/o session — NOT a logout
+      applySession(session, evt);
       if (evt === 'PASSWORD_RECOVERY') {
         UI.toast('Password reset verified — set a new password below under Settings → Account.', 'info', 7000);
         showTab('settings');
       }
     });
+
+    // 2) then do the explicit initial session check
+    try {
+      var res = await client.auth.getSession();
+      var session = res && res.data ? res.data.session : null;
+      console.debug('[mrembo-auth] initial check: ' + (session ? 'valid session found' : 'no session — login'));
+      applySession(session, 'initial-check');
+    } catch (e) {
+      console.debug('[mrembo-auth] initial check failed: ' + shortErr(e));
+      showAuth('Could not check your session: ' + shortErr(e));
+    }
   }
 
   function setLoading(btn, on, label) {
@@ -115,10 +178,16 @@
       var client = await SETUP.getClient();
       var res = await client.auth.signInWithPassword({ email: email, password: password });
       if (res.error) throw res.error;
-      // success → onAuthStateChange shows the dashboard
+      // Success is normally also announced by onAuthStateChange, but apply the
+      // session explicitly from the response — applySession() is idempotent.
+      var session = res.data && res.data.session;
+      if (!session) throw new Error('Sign-in succeeded but no session was returned — please try again.');
+      applySession(session, 'sign-in');
+      console.debug('[mrembo-auth] sign-in accepted');
     } catch (err) {
       msg.textContent = friendlyAuthError(err);
       msg.hidden = false;
+      console.debug('[mrembo-auth] sign-in failed: ' + ((err && err.name === '') ? err.name : 'rejected')); // no credentials logged
     } finally {
       setLoading(btn, false, 'Sign In');
     }
@@ -148,11 +217,7 @@
       var client = await SETUP.getClient();
       await client.auth.signOut();
     } catch (e) { /* signing out locally regardless */ }
-    state.user = null;
-    state.pending.forEach(function (p) { URL.revokeObjectURL(p.url); });
-    state.pending = [];
-    renderPending();
-    showAuth();
+    sessionEnd('signed-out');
   });
 
   /* ==================================================================
@@ -174,8 +239,10 @@
      ================================================================== */
   async function refreshData() {
     if (!state.user) return;
+    var seq = ++refreshSeq; // only the newest load should paint the UI
     try {
       var data = await SETUP.fetchAdminData();
+      if (seq !== refreshSeq || !state.user) return; // superseded or signed out mid-flight
       state.services = data.services || [];
       state.gallery = data.gallery || [];
       state.settingsRow = data.settings;
@@ -185,6 +252,11 @@
       fillSettingsForm(state.settingsRow);
       $('#gal-refresh').disabled = false;
     } catch (err) {
+      if (seq !== refreshSeq) return;
+      if (looksAuthRelated(err)) {
+        sessionEnd('authorisation lost', 'Your session is no longer authorised (' + shortErr(err) + '). Please sign in again.');
+        return;
+      }
       UI.toast('Could not load your data: ' + shortErr(err) + ' — if this persists, re-run supabase-setup.sql (README step 6).', 'err', 8000);
       $('#gallery-manage').innerHTML = '<div class="empty-state glass-card" style="grid-column:1/-1;"><span class="big">😕</span><p>Could not load photos. ' + esc(shortErr(err)) + '</p></div>';
       $('#services-manage').innerHTML = '<div class="empty-state glass-card" style="grid-column:1/-1;"><span class="big">😕</span><p>Could not load services. ' + esc(shortErr(err)) + '</p></div>';
@@ -240,10 +312,13 @@
         '<button type="button" data-rm="' + p.id + '" aria-label="Remove ' + esc(p.file.name) + '">✕</button></div>';
     }).join('');
     var btn = $('#upload-btn');
-    btn.disabled = !state.pending.length;
-    btn.textContent = state.pending.length
-      ? 'Upload ' + state.pending.length + ' Photo' + (state.pending.length > 1 ? 's' : '')
-      : 'Upload Photos';
+    var externalMode = !!galSource && galSource.value === 'external';
+    btn.disabled = externalMode ? false : !state.pending.length;
+    btn.textContent = externalMode
+      ? 'Publish Link'
+      : state.pending.length
+        ? 'Upload ' + state.pending.length + ' Photo' + (state.pending.length > 1 ? 's' : '')
+        : 'Upload Photos';
   }
 
   $('#previews').addEventListener('click', function (e) {
@@ -270,6 +345,25 @@
     dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('dragover'); });
   });
   dz.addEventListener('drop', function (e) { addFiles(e.dataTransfer && e.dataTransfer.files); });
+
+  /* --- photo source (device upload / AI import / external link) --- */
+  var galSource = $('#gal-source'), galExtRow = $('#gal-external-row'), galExtUrl = $('#gal-external-url');
+  function syncGalSourceUI() {
+    var src = galSource.value;
+    var isExt = src === 'external';
+    galExtRow.hidden = !isExt;
+    dz.classList.toggle('disabled', isExt);
+    dz.style.opacity = isExt ? '0.45' : '';
+    dz.style.pointerEvents = isExt ? 'none' : '';
+    $('#gal-source-hint').textContent = isExt
+      ? 'Publishing from a link — no file is uploaded here, so storage never holds this image.'
+      : src === 'ai_generated'
+        ? 'Generated with an AI tool? Save it, upload here, and it’s managed like any other photo — publish, replace or delete from this dashboard.'
+        : 'JPEG/PNG/WebP/AVIF · up to 12 MB each · larger files are compressed automatically.';
+    renderPending();
+  }
+  galSource.addEventListener('change', syncGalSourceUI);
+  syncGalSourceUI(); // align button/panel state with the initial select value
 
   /* --- image compression (keeps uploads light + fast for visitors) --- */
   function compressImage(file) {
@@ -359,7 +453,16 @@
 
     var sessionRes = await client.auth.getSession();
     var session = sessionRes && sessionRes.data && sessionRes.data.session;
-    if (!session) { UI.toast('Please sign in again.', 'err'); showAuth(); return; }
+    if (!session) {
+      UI.toast('Your session ended — please sign in again.', 'err', 5000);
+      sessionEnd('expired-at-upload', 'Your session ended. Please sign in again to continue.');
+      return;
+    }
+
+    // external-link mode: publish a URL as-is (no file lands in storage)
+    if ($('#gal-source').value === 'external') { importExternalImage(client, session, btn); return; }
+
+    var sourceMode = $('#gal-source').value || 'upload'; // 'upload' | 'ai_generated'
 
     var sharedTitle = $('#gal-title').value.trim();
     var sharedDesc = $('#gal-desc').value.trim();
@@ -408,6 +511,7 @@
           category: category,
           image_url: publicUrl,
           storage_path: path,
+          source: sourceMode,
           published: published,
           featured: featured,
           sort_order: nextSort--
@@ -442,23 +546,112 @@
     }
   });
 
+  /* --- insert helper: tolerates a live table that predates the `source`
+         column (migration 2). Falls back to a plain insert automatically. --- */
+  var sourceColSupported = true;
+  function missingSourceColumn(err) {
+    var m = ((err && (err.message || '') + ' ' + (err.details || '')) || '');
+    return err && err.code === 'PGRST204' && /source/i.test(m);
+  }
+  async function insertWithSource(client, payload) {
+    var err = null, res = null;
+    if (sourceColSupported) {
+      res = await client.from('gallery_items').insert(payload);
+      if (!res.error) return res;
+      if (missingSourceColumn(res.error)) {
+        sourceColSupported = false;
+        console.warn('[mrembo-admin] gallery_items lacks a `source` column — saved without it. Run supabase-migrate-2.sql to enable source tracking.');
+        UI.toast('Saved ✓ — but source tagging needs migration 2 (run supabase-migrate-2.sql).', 'info', 8000);
+      } else return res;
+    }
+    var plain = Object.assign({}, payload);
+    delete plain.source;
+    res = await client.from('gallery_items').insert(plain);
+    return res;
+  }
+
+  /* --- external image import (URL stays external; only our record is ours) --- */
+  async function importExternalImage(client, session, btn) {
+    var msg = $('#upload-msg');
+    msg.textContent = '';
+    var url = galExtUrl.value.trim();
+    var title = $('#gal-title').value.trim();
+    if (!title) { msg.textContent = 'Please give the photo a title before publishing.'; return; }
+    if (!/^https?:\/\//i.test(url)) { msg.textContent = 'The image URL must start with http(s)://.'; return; }
+
+    // new entries go to the top of the gallery
+    var minSort = 0;
+    state.gallery.forEach(function (g) {
+      if (typeof g.sort_order === 'number' && g.sort_order < minSort) minSort = g.sort_order;
+    });
+
+    setLoading(btn, true, 'Saving…');
+    try {
+      var ins = await client.from('gallery_items').insert({
+        title: title.slice(0, 120),
+        description: $('#gal-desc').value.trim(),
+        category: $('#gal-category').value || 'Nude Nails',
+        image_url: url,
+        storage_path: null,
+        source: 'external',
+        published: $('#gal-pub').checked,
+        featured: $('#gal-feat').checked,
+        sort_order: minSort - 1
+      });
+      if (ins.error) throw ins.error;
+      UI.toast('External photo published ✓ — deleting it later removes your record, not the hosted file.', 'ok', 6500);
+      galExtUrl.value = '';
+      $('#gal-title').value = '';
+      $('#gal-desc').value = '';
+      await refreshData();
+    } catch (err) {
+      msg.textContent = 'Could not publish: ' + shortErr(err);
+      UI.toast('Could not publish the external photo: ' + shortErr(err), 'err', 7000);
+    } finally {
+      setLoading(btn, false, 'Publish Link');
+      renderPending();
+    }
+  }
+
   /* ==================================================================
      GALLERY — MANAGE LIST
      ================================================================== */
   function renderGalleryAdmin() {
     var wrap = $('#gallery-manage');
-    var list = state.gallery;
-    $('#gal-count').textContent = list.length;
-    if (!list.length) {
+    var all = state.gallery;
+    $('#gal-count').textContent = all.length;
+
+    // local search + source filter over the fetched records
+    var q = ($('#gal-search').value || '').trim().toLowerCase();
+    var srcF = $('#gal-source-filter').value;
+    var list = all.filter(function (g) {
+      if (srcF && (g.source || 'upload') !== srcF) return false;
+      if (!q) return true;
+      return ((g.title || '') + ' ' + (g.description || '')).toLowerCase().indexOf(q) >= 0;
+    });
+    $('#gal-filter-count').textContent = (q || srcF) ? list.length + ' shown of ' + all.length : '';
+
+    if (!all.length) {
       wrap.innerHTML = '<div class="empty-state glass-card" style="grid-column:1/-1;"><span class="big">🌸</span><p>No photos yet. Upload your first set above — publish it and it appears on the public gallery instantly.</p></div>';
       return;
     }
+    if (!list.length) {
+      wrap.innerHTML = '<div class="empty-state glass-card" style="grid-column:1/-1;"><span class="big">🔍</span><p>No photos match this search or filter. Try clearing them.</p></div>';
+      return;
+    }
+    var SOURCE_LABEL = {
+      'upload': '☁ Uploaded',
+      'ai_generated': '✨ AI-generated',
+      'external': '🔗 External'
+    };
     wrap.innerHTML = list.map(function (g, i) {
+      var src = g.source || 'upload';
       return '<div class="manage-card">' +
         '<img class="thumb" src="' + esc(g.image_url) + '" alt="' + esc(g.title) + '" loading="lazy">' +
         '<h3>' + esc(g.title) + '</h3>' +
         (g.description ? '<p class="mini">' + esc(g.description) + '</p>' : '') +
         '<div class="chip-group">' +
+          '<span class="tag ' + (src === 'ai_generated' ? 'tag-src-ai' : '') + '">' + esc(SOURCE_LABEL[src] || src) + '</span>' +
           '<span class="tag">' + esc(g.category || '—') + '</span>' +
           '<span class="tag ' + (g.published ? 'tag-on' : 'tag-off') + '">' + (g.published ? '● Published' : '○ Unpublished') + '</span>' +
           (g.featured ? '<span class="tag tag-feat">★ Featured</span>' : '') +
@@ -466,6 +659,7 @@
         '<div class="manage-actions">' +
           '<label class="switch"><input type="checkbox" data-pub="' + g.id + '"' + (g.published ? ' checked' : '') + '><i></i>Live</label>' +
           '<label class="switch"><input type="checkbox" data-feat="' + g.id + '"' + (g.featured ? ' checked' : '') + '><i></i>★</label>' +
+          '<button type="button" class="icon-btn" data-replace="' + g.id + '" aria-label="Replace photo" title="Replace the image file">🔄</button>' +
           '<button type="button" class="icon-btn" data-up="' + g.id + '" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
           '<button type="button" class="icon-btn" data-down="' + g.id + '" aria-label="Move later"' + (i === list.length - 1 ? ' disabled' : '') + '>↓</button>' +
           '<button type="button" class="icon-btn" data-edit="' + g.id + '" aria-label="Edit photo details">✎</button>' +
@@ -509,14 +703,95 @@
     var b;
     if ((b = e.target.closest('[data-edit]'))) openImgModal(b.getAttribute('data-edit'));
     else if ((b = e.target.closest('[data-del]'))) deleteGalleryRow(b.getAttribute('data-del'));
+    else if ((b = e.target.closest('[data-replace]'))) pickReplacement(b.getAttribute('data-replace'));
     else if ((b = e.target.closest('[data-up]'))) moveRow('gallery_items', b.getAttribute('data-up'), -1);
     else if ((b = e.target.closest('[data-down]'))) moveRow('gallery_items', b.getAttribute('data-down'), 1);
   });
 
+  /* --- live search + source filter --- */
+  function scheduleGalleryRender() {
+    clearTimeout(renderGalleryAdmin._t);
+    renderGalleryAdmin._t = setTimeout(renderGalleryAdmin, 160);
+  }
+  $('#gal-search').addEventListener('input', scheduleGalleryRender);
+  $('#gal-source-filter').addEventListener('change', renderGalleryAdmin);
+
+  /* --- replace image (same record, new file) --- */
+  function pickReplacement(id) {
+    var row = findGallery(id);
+    if (!row) return;
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/jpeg,image/png,image/webp,image/avif';
+    inp.onchange = function () {
+      var file = inp.files && inp.files[0];
+      inp.value = '';
+      if (file) replaceGalleryImage(id, file);
+    };
+    inp.click();
+  }
+
+  async function replaceGalleryImage(id, file) {
+    var row = findGallery(id);
+    if (!row) return;
+    if (!/^image\//.test(file.type)) { UI.toast('That file is not an image.', 'err'); return; }
+    if (file.size > 12 * 1024 * 1024) { UI.toast('That image is over 12 MB — compress it first.', 'err'); return; }
+    var ok = await confirmDialog('Replace “' + row.title + '” with a new image? The gallery record stays, the old file is removed from storage — this cannot be undone.');
+    if (!ok) return;
+
+    var client;
+    try { client = await SETUP.getClient(); }
+    catch (e) { UI.toast('Supabase unavailable: ' + shortErr(e), 'err'); return; }
+    var sess = (await client.auth.getSession()).data;
+    if (!sess || !sess.session) {
+      sessionEnd('expired-at-replace', 'Your session ended. Please sign in again to continue.');
+      return;
+    }
+    UI.toast('Replacing photo…', 'info', 3000);
+    try {
+      var blob = await compressImage(file);
+      if (!(blob instanceof Blob)) blob = new Blob([blob], { type: blob.type || 'image/jpeg' });
+      var safe = UI.slugify(row.title || 'photo');
+      var newPath = sess.session.user.id + '/replace-' + Date.now() + '-' + safe + '.jpg';
+      await uploadBlob(client, sess.session, blob, newPath);
+
+      var publicUrl = client.storage.from(SETUP.BUCKET).getPublicUrl(newPath).data.publicUrl;
+      var upRes = await client.from('gallery_items').update({
+        image_url: publicUrl,
+        storage_path: newPath,
+        updated_at: new Date().toISOString()
+      }).eq('id', id);
+      if (upRes.error) {
+        try { await client.storage.from(SETUP.BUCKET).remove([newPath]); } catch (e) { /* drop the orphan */ }
+        throw upRes.error;
+      }
+      if (row.storage_path) {
+        try {
+          var rm = await client.storage.from(SETUP.BUCKET).remove([row.storage_path]);
+          if (rm.error && !/not found|does not exist/i.test(rm.error.message || '')) {
+            UI.toast('The new photo is live, but the OLD file could not be removed from storage: ' + shortErr(rm.error), 'err', 9000);
+          }
+        } catch (e) {
+          UI.toast('The new photo is live, but the OLD file could not be removed from storage.', 'err', 9000);
+        }
+      } else if (row.source === 'external') {
+        UI.toast('Replaced — this record now uses your own storage instead of the external link ✓', 'info', 5500);
+      }
+      UI.toast('Photo replaced ✓', 'ok');
+      refreshData();
+    } catch (err) {
+      UI.toast('Could not replace the photo: ' + shortErr(err), 'err', 7000);
+    }
+  }
+
   async function deleteGalleryRow(id) {
     var row = findGallery(id);
     if (!row) return;
-    var ok = await confirmDialog('Delete “' + row.title + '”? This also removes the photo file from storage. This cannot be undone.');
+    var source = row.source || 'upload';
+    var ask = source === 'external'
+      ? 'Remove “' + row.title + '” from your gallery? The image stays at its external location — only your website record is deleted.'
+      : 'Delete “' + row.title + '”? This also removes the photo file from storage. This cannot be undone.';
+    var ok = await confirmDialog(ask);
     if (!ok) return;
     var client = await SETUP.getClient();
     if (row.storage_path) {
@@ -524,13 +799,15 @@
         var rm = await client.storage.from(SETUP.BUCKET).remove([row.storage_path]);
         if (rm.error && !/not found|does not exist/i.test(rm.error.message || '')) throw rm.error;
       } catch (err) {
-        UI.toast('Could not remove the file: ' + shortErr(err) + ' — the gallery entry was not deleted.', 'err', 7000);
+        UI.toast('Could not remove the file: ' + shortErr(err) + ' — the gallery entry was NOT deleted, so the site is unchanged.', 'err', 8000);
         return;
       }
     }
     var res = await client.from('gallery_items').delete().eq('id', id);
     if (res.error) { UI.toast('Could not delete: ' + shortErr(res.error), 'err', 6000); return; }
-    UI.toast('Photo deleted.', 'ok', 2600);
+    UI.toast(source === 'external'
+      ? 'Removed from your gallery — the external file itself is untouched.'
+      : 'Photo deleted.', 'ok', source === 'external' ? 5000 : 2600);
     refreshData();
   }
 
@@ -688,6 +965,13 @@
     $('#svc-duration').value = svc ? (svc.duration || '') : '';
     $('#svc-desc').value = svc ? (svc.description || '') : '';
     $('#svc-cover').value = svc ? (svc.cover_url || '') : '';
+    var pick = $('#svc-cover-pick');
+    pick.innerHTML = '<option value="">— Choose an uploaded photo —</option>' +
+      state.gallery.map(function (g) {
+        var label = g.title + ((g.source || 'upload') === 'external' ? ' · link' : '');
+        return '<option value="' + esc(g.image_url) + '">' + esc(label) + '</option>';
+      }).join('');
+    pick.value = svc && svc.cover_url ? svc.cover_url : '';
     $('#svc-order').value = svc && svc.sort_order != null ? svc.sort_order : '';
     $('#svc-enabled').checked = svc ? svc.enabled !== false : true;
     $('#svc-feat').checked = svc ? !!svc.featured : false;
@@ -702,6 +986,9 @@
   }
 
   $('#add-service-btn').addEventListener('click', function () { openSvcModal(null); });
+  $('#svc-cover-pick').addEventListener('change', function () {
+    if (this.value) $('#svc-cover').value = this.value;
+  });
   $('#addon-add').addEventListener('click', function () {
     $('#addon-rows').appendChild(addonRowEl('', ''));
   });
@@ -771,16 +1058,38 @@
      ================================================================== */
   function fillSettingsForm(row) {
     var v = row || {};
-    $('#st-name').value = v.businessName || '';
-    $('#st-logo').value = v.logoUrl || '';
-    $('#st-wa').value = v.whatsappNumber || '';
-    $('#st-ig').value = v.instagramUsername || '';
-    $('#st-location').value = v.studioLocation || '';
-    $('#st-areas').value = v.houseCallAreas || '';
-    $('#st-transport').value = v.transportFee || '';
-    $('#st-hours').value = v.businessHours || '';
-    $('#st-instructions').value = v.bookingInstructions || '';
-    $('#st-disclaimer').value = v.bookingDisclaimer || '';
+    var at = function (id, val) { var el = $('#' + id); el.value = (val == null ? '' : String(val)); };
+    at('st-name', v.businessName);
+    at('st-logo', v.logoUrl);
+    at('st-wa', v.whatsappNumber);
+    at('st-ig', v.instagramUsername);
+    at('st-location', v.studioLocation);
+    at('st-areas', v.houseCallAreas);
+    at('st-transport', v.transportFee);
+    at('st-hours', v.businessHours);
+    at('st-instructions', v.bookingInstructions);
+    at('st-disclaimer', v.bookingDisclaimer);
+    // homepage & public text
+    at('st-headline', v.heroHeadline);
+    at('st-hero-sub', v.heroDescription);
+    at('st-hero-img', v.heroImage);
+    at('st-tech-img', v.technicianImage);
+    at('st-hero-btn1', v.heroCtaPrimaryLabel);
+    at('st-hero-btn2', v.heroCtaSecondaryLabel);
+    at('st-services-title', v.servicesSectionTitle);
+    at('st-services-sub', v.servicesSectionSub);
+    at('st-gallery-title', v.gallerySectionTitle);
+    at('st-gallery-sub', v.gallerySectionSub);
+    at('st-booking-title', v.bookingSectionTitle);
+    at('st-house-title', v.houseSectionTitle);
+    at('st-house-tag', v.housePhotoTag);
+    at('st-meta', v.metaDescription);
+    at('st-footer', v.footerNote);
+    at('st-cta-title', v.ctaBandTitle);
+    at('st-cta-sub', v.ctaBandSubtitle);
+    $('#st-show-gal').checked = v.showGallerySection !== false;
+    $('#st-show-house').checked = v.showHouseCallSection !== false;
+    $('#st-show-cta').checked = v.showCtaBand !== false;
     $('#settings-source-hint').textContent = row
       ? 'These values are live — they override config.js on the public site.'
       : 'Nothing saved yet — these are the config.js defaults. Press Save to take over.';
@@ -802,6 +1111,17 @@
       msg.textContent = 'Logo must be an image URL starting with http(s)://';
       return;
     }
+    var heroImg = $('#st-hero-img').value.trim();
+    var techImg = $('#st-tech-img').value.trim();
+    var badImg = [['Hero photo', heroImg], ['House-call photo', techImg]].find(function (p) {
+      return p[1] && !/^https:\/\//i.test(p[1]);
+    });
+    if (badImg) {
+      msg.className = 'form-msg err';
+      msg.textContent = badImg[0] + ' URL must start with https:// (mixed-content http images are blocked by browsers).';
+      return;
+    }
+    var val = function (id) { return $('#' + id).value.trim(); };
     var settings = {
       businessName: $('#st-name').value.trim() || 'Mrembo Nails',
       logoUrl: logo,
@@ -812,7 +1132,28 @@
       transportFee: $('#st-transport').value.trim(),
       businessHours: $('#st-hours').value.trim(),
       bookingInstructions: $('#st-instructions').value.trim(),
-      bookingDisclaimer: $('#st-disclaimer').value.trim()
+      bookingDisclaimer: $('#st-disclaimer').value.trim(),
+      // homepage & public text
+      heroHeadline: val('st-headline'),
+      heroDescription: val('st-hero-sub'),
+      heroImage: heroImg,
+      technicianImage: techImg,
+      heroCtaPrimaryLabel: val('st-hero-btn1'),
+      heroCtaSecondaryLabel: val('st-hero-btn2'),
+      servicesSectionTitle: val('st-services-title'),
+      servicesSectionSub: val('st-services-sub'),
+      gallerySectionTitle: val('st-gallery-title'),
+      gallerySectionSub: val('st-gallery-sub'),
+      bookingSectionTitle: val('st-booking-title'),
+      houseSectionTitle: val('st-house-title'),
+      housePhotoTag: val('st-house-tag'),
+      metaDescription: val('st-meta'),
+      footerNote: val('st-footer'),
+      ctaBandTitle: val('st-cta-title'),
+      ctaBandSubtitle: val('st-cta-sub'),
+      showGallerySection: $('#st-show-gal').checked,
+      showHouseCallSection: $('#st-show-house').checked,
+      showCtaBand: $('#st-show-cta').checked
     };
     setLoading($('#settings-save'), true, 'Saving…');
     try {
