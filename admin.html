@@ -61,16 +61,16 @@
         <span class="brand-mark" aria-hidden="true">M</span>
         <span>Owner Studio</span>
       </a>
+      <div class="admin-user">
+        <span class="tag" id="user-chip" title="Signed in">…</span>
+        <button class="btn btn-sm btn-outline" id="logout-btn">Log out</button>
+      </div>
       <nav aria-label="Dashboard sections">
         <button class="admin-tab active" data-tab="dashboard">Dashboard</button>
         <button class="admin-tab" data-tab="gallery">Gallery</button>
         <button class="admin-tab" data-tab="services">Services</button>
         <button class="admin-tab" data-tab="settings">Settings</button>
       </nav>
-      <div style="display:flex; align-items:center; gap:10px;">
-        <span class="tag" id="user-chip" title="Signed in">…</span>
-        <button class="btn btn-sm btn-outline" id="logout-btn">Log out</button>
-      </div>
     </header>
 
     <main class="wrap" style="padding-bottom:60px;">
@@ -92,6 +92,7 @@
             <button class="btn" data-goto="gallery">☁ Upload Photos</button>
             <button class="btn btn-outline" data-goto="services">💅 Manage Services & Prices</button>
             <button class="btn btn-outline" data-goto="settings">⚙ Business Settings</button>
+            <button class="btn btn-outline" id="dash-reload">↻ Reload Data</button>
             <a class="btn btn-outline" href="index.html" target="_blank" rel="noopener">👀 View Public Site</a>
           </div>
         </div>

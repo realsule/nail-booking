@@ -253,11 +253,18 @@
       $('#gal-refresh').disabled = false;
     } catch (err) {
       if (seq !== refreshSeq) return;
+      // failure must never paint silent zeros — mark stats as failed instead
+      ['stat-total', 'stat-published', 'stat-services', 'stat-feat'].forEach(function (id) {
+        var el = $('#' + id);
+        if (el) el.textContent = '!';
+      });
+      var st = $('#stat-total-sub');
+      if (st) st.textContent = 'Load failed — press ↻ Reload Data';
       if (looksAuthRelated(err)) {
         sessionEnd('authorisation lost', 'Your session is no longer authorised (' + shortErr(err) + '). Please sign in again.');
         return;
       }
-      UI.toast('Could not load your data: ' + shortErr(err) + ' — if this persists, re-run supabase-setup.sql (README step 6).', 'err', 8000);
+      UI.toast('Could not load your data: ' + shortErr(err) + ' — press “Reload Data” to retry. If this persists, re-run supabase-setup.sql (README step 6).', 'err', 9000);
       $('#gallery-manage').innerHTML = '<div class="empty-state glass-card" style="grid-column:1/-1;"><span class="big">😕</span><p>Could not load photos. ' + esc(shortErr(err)) + '</p></div>';
       $('#services-manage').innerHTML = '<div class="empty-state glass-card" style="grid-column:1/-1;"><span class="big">😕</span><p>Could not load services. ' + esc(shortErr(err)) + '</p></div>';
     }
@@ -289,6 +296,13 @@
   $('#gal-refresh').addEventListener('click', function () {
     refreshData();
     UI.toast('Gallery refreshed.', 'info', 2200);
+  });
+
+  $('#dash-reload').addEventListener('click', async function () {
+    setLoading(this, true, 'Reloading…');
+    await refreshData();
+    setLoading(this, false, '↻ Reload Data');
+    if (state.user) UI.toast('Dashboard data reloaded.', 'info', 2200);
   });
 
   /* ==================================================================
@@ -445,8 +459,23 @@
 
   $('#upload-btn').addEventListener('click', async function () {
     var btn = this;
-    if (!state.pending.length) return;
     if (btn.disabled) return;
+    // external-link mode: publish a URL as-is (no file lands in storage)
+    if ($('#gal-source').value === 'external') {
+      var cl0;
+      try { cl0 = await SETUP.getClient(); }
+      catch (e) { UI.toast('Supabase unavailable: ' + shortErr(e), 'err'); return; }
+      var s0 = await cl0.auth.getSession();
+      var sess0 = s0 && s0.data && s0.data.session;
+      if (!sess0) {
+        UI.toast('Your session ended — please sign in again.', 'err', 5000);
+        sessionEnd('expired-at-import', 'Your session ended. Please sign in again to continue.');
+        return;
+      }
+      importExternalImage(cl0, sess0, btn);
+      return;
+    }
+    if (!state.pending.length) return;
     var client;
     try { client = await SETUP.getClient(); }
     catch (e) { UI.toast('Supabase unavailable: ' + shortErr(e), 'err'); return; }
@@ -458,9 +487,6 @@
       sessionEnd('expired-at-upload', 'Your session ended. Please sign in again to continue.');
       return;
     }
-
-    // external-link mode: publish a URL as-is (no file lands in storage)
-    if ($('#gal-source').value === 'external') { importExternalImage(client, session, btn); return; }
 
     var sourceMode = $('#gal-source').value || 'upload'; // 'upload' | 'ai_generated'
 
@@ -505,7 +531,7 @@
         if (total > 1 && !sharedTitle) title = title + ' (' + (i + 1) + '/' + total + ')';
 
         var publicUrl = client.storage.from(SETUP.BUCKET).getPublicUrl(path).data.publicUrl;
-        var ins = await client.from('gallery_items').insert({
+        var ins = await insertWithSource(client, {
           title: title.slice(0, 120),
           description: sharedDesc,
           category: category,
@@ -587,7 +613,7 @@
 
     setLoading(btn, true, 'Saving…');
     try {
-      var ins = await client.from('gallery_items').insert({
+      var ins = await insertWithSource(client, {
         title: title.slice(0, 120),
         description: $('#gal-desc').value.trim(),
         category: $('#gal-category').value || 'Nude Nails',
@@ -873,7 +899,12 @@
     var wrap = $('#services-manage');
     var list = state.services;
     if (!list.length) {
-      wrap.innerHTML = '<div class="empty-state glass-card" style="grid-column:1/-1;"><span class="big">💅</span><p>No services in Supabase yet — the public site is showing the starter set from config.js. Add your first service to take over.</p></div>';
+      wrap.innerHTML = '<div class="empty-state glass-card" style="grid-column:1/-1;">' +
+        '<span class="big">💅</span>' +
+        '<p>No services in Supabase yet — the public site is showing the starter set from config.js.</p>' +
+        '<p class="mini">Add your first service to take over, or import the starter set (6 services, KSh prices) — nothing existing in config.js or the database is overwritten:</p>' +
+        '<button type="button" class="btn" data-seed-services style="margin-top:4px;">🌱 Import starter services from config.js</button>' +
+      '</div>';
       return;
     }
     wrap.innerHTML = list.map(function (sv, i) {
@@ -925,6 +956,8 @@
     var b;
     if ((b = e.target.closest('[data-svc-edit]'))) {
       openSvcModal(findService(b.getAttribute('data-svc-edit')));
+    } else if ((b = e.target.closest('[data-seed-services]'))) {
+      seedServices();
     } else if ((b = e.target.closest('[data-svc-del]'))) {
       var sv = findService(b.getAttribute('data-svc-del'));
       if (!sv) return;
@@ -941,6 +974,49 @@
       moveRow('services', b.getAttribute('data-svc-down'), 1);
     }
   });
+
+  /* --- one-time helper: import the starter service set from config.js.
+         Explicitly manual, refuse to run when rows already exist. --- */
+  async function seedServices() {
+    var ok = await confirmDialog('Import the 6 starter services from config.js into Supabase? Your public site will then show these exact services from the database instead of the config fallback. Nothing is overwritten — this is skipped if any service row already exists.');
+    if (!ok) return;
+    var client;
+    try { client = await SETUP.getClient(); }
+    catch (e) { UI.toast('Supabase unavailable: ' + shortErr(e), 'err'); return; }
+    try {
+      var probe = await client.from('services').select('id').limit(1);
+      if (probe.error) throw probe.error;
+      if (probe.data && probe.data.length) {
+        UI.toast('Services already exist in Supabase — import skipped to protect your data.', 'info', 5000);
+        refreshData();
+        return;
+      }
+      var rows = (S.DEFAULT_SERVICES || []).map(function (sv) {
+        return {
+          name: sv.name,
+          description: sv.description || '',
+          price: Number(sv.price) || 0,
+          duration: sv.duration || null,
+          category: sv.category || null,
+          cover_url: sv.cover_url || null,
+          addons: Array.isArray(sv.addons) ? sv.addons : [],
+          featured: !!sv.featured,
+          enabled: sv.enabled !== false,
+          sort_order: Number(sv.sort_order) || 0
+        };
+      });
+      if (!rows.length) { UI.toast('No starter services found in config.js.', 'err'); return; }
+      var res = await client.from('services').insert(rows);
+      if (res.error) throw res.error;
+      UI.toast('Starter services imported ✓ — manage and edit them here from now on.', 'ok', 5200);
+      refreshData();
+    } catch (err) {
+      var m = shortErr(err);
+      UI.toast(/row-level security|permission|42501/i.test(m)
+        ? 'The database refused the import (' + m + '). This import needs your owner login — if you have run supabase-migrate-2.sql, make sure your account is in app_owners.'
+        : 'Could not import: ' + m, 'err', 8000);
+    }
+  }
 
   /* --- service modal --- */
   function addonRowEl(label, price) {
@@ -1057,7 +1133,7 @@
      BUSINESS SETTINGS
      ================================================================== */
   function fillSettingsForm(row) {
-    var v = row || {};
+    var v = row || (S.DEFAULT_SETTINGS || {}); // no saved row → show what's live from config.js
     var at = function (id, val) { var el = $('#' + id); el.value = (val == null ? '' : String(val)); };
     at('st-name', v.businessName);
     at('st-logo', v.logoUrl);
@@ -1231,8 +1307,10 @@
     });
   }
   $('#confirm-ok').addEventListener('click', function () {
+    var resolve = pendingConfirm;   // capture BEFORE closeModal (its
+    pendingConfirm = null;          // 'ui:modalclosed' event resolves false)
+    if (resolve) resolve(true);
     UI.closeModal($('#confirm-modal'));
-    if (pendingConfirm) { pendingConfirm(true); pendingConfirm = null; }
   });
   $('#confirm-modal').addEventListener('ui:modalclosed', function () {
     if (pendingConfirm) { pendingConfirm(false); pendingConfirm = null; }

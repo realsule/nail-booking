@@ -36,14 +36,17 @@
       return Promise.reject(new Error('Supabase JS library did not load — check your internet connection / CDN.'));
     }
     if (!clientPromise) {
-      clientPromise = global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      // supabase-js v2 createClient() returns the CLIENT OBJECT synchronously,
+      // not a promise — wrap it so callers can always rely on Promise semantics
+      // (fetchPublicContent uses .catch on this).
+      clientPromise = Promise.resolve(global.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: {
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true,   // handles password-recovery links landing on /admin.html
           storageKey: STORAGE_KEY
         }
-      });
+      }));
     }
     return clientPromise;
   }

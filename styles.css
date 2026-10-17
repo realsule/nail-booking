@@ -13,6 +13,12 @@
    ========================================================================== */
 
 /* 1 ─── DESIGN TOKENS ─────────────────────────────────────────────────── */
+/* The `hidden` attribute wins over any author display rule — otherwise
+   elements that set display:grid/flex (e.g. .auth-wrap) stay visible even
+   when JS hides them, which made the login form + dashboard appear at the
+   same time. */
+[hidden] { display: none !important; }
+
 :root {
   --bg: #FFF7F9;
   --pink: #F2A6BE;
@@ -581,13 +587,39 @@ input[type="radio"].mode-choice:checked + label {
 /* 12 ─── ADMIN DASHBOARD ─────────────────────────────────────────────── */
 .admin-top {
   position: sticky; top: 0; z-index: 50;
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  padding: 14px 20px; margin: 0 0 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap;                       /* never overflow: rows wrap instead */
+  gap: 8px 14px;
+  padding: 12px 20px; margin: 0 0 20px;
   background: var(--glass);
   border-bottom: 1px solid var(--border);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
 }
-.admin-top nav { display: flex; gap: 4px; overflow-x: auto; }
+.admin-top .brand { flex: 0 1 auto; min-width: 0; }
+.admin-top nav {
+  display: flex; gap: 4px;
+  flex-wrap: wrap;                       /* tabs wrap instead of a scrollbar */
+  justify-content: center;
+  flex: 1 1 auto; min-width: 0;
+  order: 3;                              /* own row on tablet/mobile */
+  padding-bottom: 4px;
+}
+@media (min-width: 1000px) {
+  .admin-top nav { order: 0; flex: 0 1 auto; padding-bottom: 0; }
+}
+.admin-user {
+  display: flex; align-items: center; gap: 10px;
+  margin-left: auto; min-width: 0; max-width: 100%; flex: 0 1 auto;
+}
+.admin-user .tag#user-chip {
+  min-width: 0; max-width: 240px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.admin-user .btn { white-space: nowrap; flex: 0 0 auto; }
+@media (max-width: 520px) {
+  .admin-top { padding: 10px 12px; }
+  .admin-user .tag#user-chip { max-width: 42vw; font-size: 0.78rem; }
+}
 .admin-tab {
   padding: 10px 16px; border-radius: 999px; border: 0; cursor: pointer;
   background: transparent; color: var(--ink-soft); font: 600 0.9rem/1 var(--font-body);
