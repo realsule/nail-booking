@@ -221,7 +221,7 @@
     g('Rosy Nude Blush', 'Nude Nails', 'Soft rosy nude with a clean oval shape.', 'photo-1457972729786-0411a3b2b626'),
     g('Everyday Polish', 'Nude Nails', 'A glossy, office-ready natural finish.', 'photo-1519699047748-de8e457a634e'),
     g('Soft Blush Pink', 'Pink Nails', 'Candy pink with a glass-gel shine.', 'photo-1610992015732-2449b76344bc', true),
-    g('Rosé All Day', 'Pink Nails', 'Playful pink set with a high-shine finish.', 'photo-1522093537031-3ee69e6b1746'),
+    g('Rose All Day', 'Pink Nails', 'Playful pink set with a high-shine finish.', 'photo-1522093537031-3ee69e6b1746'),
     g('Parisian French', 'French Tips', 'The timeless white-tip French.', 'photo-1519014816548-bf5fe059798b', true),
     g('Modern French Fade', 'French Tips', 'A soft baby-boomer fade instead of a hard tip.', 'photo-1607779097040-26e80aa78e66'),
     g('Mirror Chrome', 'Chrome', 'Liquid-metal chrome over a pink base.', 'photo-1581338834647-b0fb40704e21'),
